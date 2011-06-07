@@ -1,10 +1,33 @@
 import bpy
 import struct,time,sys,os,zlib,io,mathutils
-from io_utils import load_image, unpack_list, unpack_face_list
-from xml.dom import minidom
+from bpy_extras.io_utils import load_image, unpack_list, unpack_face_list
+from mathutils import Vector, Matrix
+#from xml.dom import minidom
+import xml.sax.handler
+
+class NodeHandler(xml.sax.handler.ContentHandler):
+  def __init__(self,datapath):
+    self.inData = 0
+    self.datapath = datapath
+  def startElement(self, name, attributes):
+    if name == "node":
+      node_type = attributes["type"]
+    elif name == "mesh":
+      self.inData = 1
+
+  def characters(self,data):
+    if self.inData == 1:
+      self.buffer += data
+
+  def endElement(self,name):
+    if name == "node":
+      pass
+    elif name == "mesh":
+      self.inData = 0
+      mesh_file = self.datapath + self.buffer
+
 
 def load_mesh_file(filepath):
-
   file = open(filepath, "rb")
   header = file.read(4)
   if (header == b'mi08'):
@@ -37,6 +60,7 @@ def read_string (data):
 
 def read_smesh(data):
   n_bones, = struct.unpack("<L",data.read(4))
+
   if n_bones > 0:
     skel = bpy.data.armatures.new("skeliton")
     arm_ob = bpy.data.objects.new("skeliton",skel)
@@ -57,44 +81,50 @@ def read_smesh(data):
     parents.append(parent)
 
   for i in range(len(parents)):
-    parent = parents[i]
-    print ("bone ",bone_names[i] ,"parent ", parent)
-    if parent > -1:
-      skel.edit_bones[i].parent = skel.edit_bones[parent]
+    bone = skel.edit_bones[i]
+    parent_num = parents[i]
+    if parent_num > -1:
+      parent = skel.edit_bones[parent_num]
+      bone.parent = parent
+
 
   n_frames, = struct.unpack("<L",data.read(4))
   print(n_frames," frames")
+
   for i in range (n_frames):
     for j in range(n_bones):
-      print ("bone ", bone_names[j])
-      position = struct.unpack("<fff",data.read(12))
-      bone = skel.edit_bones[i]
-      bone.tail = position
-      children = bone.children
-      for child in children: child.head = position
-      print ("position ", position)
+      pos = struct.unpack("<fff",data.read(12))
+      bone = skel.edit_bones[j]
+      parent = bone.parent
+      print ("bone ", bone.name, "parent ", parent )
+      position = Vector(pos)
+      bone.translate(position)
+      #bone.tail = position
+      #children = bone.children
+      #for child in children: child.head = position
+      #print ("position ", position)
       scale, = struct.unpack("<f",data.read(4))
-      print("scale ",scale)
+      #print("scale ",scale)
       rotation = struct.unpack("<ffff",data.read(16))
-      print ("rotation ", rotation)
-      print("---")
+      #print ("rotation ", rotation)
+      #print("---")
 
   n_surfaces, = struct.unpack("<l",data.read(4))
-  print(n_surfaces, " surfaces")
+  #print(n_surfaces, " surfaces")
 
   for i in range(n_surfaces):
     surface_name = read_string(data)
-    print ("surface_name, ", surface_name)
+    #print ("surface_name, ", surface_name)
 
   for i in range(n_surfaces):
     verts = []
     norms = []
     n_verts, = struct.unpack("<l",data.read(4))
-    print ("num verts ", n_verts)
+    #print ("num verts ", n_verts)
     for j in range(n_verts):
       vertex = struct.unpack("<fff",data.read(12))
       normal = struct.unpack("<HHH",data.read(6))
-      n_weights = struct.unpack("<B",data.read(1))
+      n_weights, = struct.unpack("<B",data.read(1))
       weights = {}
       for k in range (n_weights):
         bone_index, = struct.unpack("<H",data.read(2))
@@ -106,7 +136,7 @@ def read_smesh(data):
     n_uvs0, = struct.unpack("<l",data.read(4))
     for j in range (n_uvs0):
       uvs0 = struct.unpack("<ff",data.read(8))
-    n_uvs1 = struct.unpack("<l",data.read(4))
+    n_uvs1, = struct.unpack("<l",data.read(4))
     for j in range (n_uvs1):
       uvs1 = struct.unpack("<ff",data.read(8))
 
@@ -117,7 +147,7 @@ def read_smesh(data):
     else :
       for j in range(n_tris):
         tri = struct.unpack("<l",data.read(12))
-    print("verts",verts)
+    #print("verts",verts)
 
     #me = bpy.data.meshes.new(surface_name)
     #ob = bpy.data.objects.new(surface_name,me)
@@ -208,15 +238,12 @@ def read_mesh(data):
 
 def find_datapath(dirpath):
   (dirbase,dirname) = os.path.split(dirpath)
-  if dirname == data:
+  if dirname == "data":
     return dirpath
   return find_datapath(dirbase)
 
 def read_node(filename,datapath):
-  xmldoc = minidom.parse(filename)
-  nodes = xmldoc.getElementsByTagName("node")
-  for node in nodes:
-    node_type = node.getAttribute("type")
+
 
 def load(operator, context, filepath=""):
   (dirname,filename) = os.path.split(filepath)

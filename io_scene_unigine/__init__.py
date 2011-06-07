@@ -24,7 +24,7 @@ class ImportUnigine(bpy.types.Operator, ImportHelper):
     bl_options = {'REGISTER', 'UNDO'}
 
     filename_ext = ".mesh"
-    filter_glob = StringProperty(default="*.mesh;*.smesh,*.node", options={'HIDDEN'})
+    filter_glob = StringProperty(default="*.mesh;*.smesh;*.node", options={'HIDDEN'})
 
     #use_lamps = BoolProperty(name="Lamps", description="Import Lights into scene",default=True)
     #use_cameras = BoolProperty(name="Cameras", description="Import Cameras into scene",default=False)
